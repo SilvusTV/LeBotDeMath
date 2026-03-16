@@ -10,7 +10,7 @@ module.exports = {
       env: {},
     },
     {
-      name: 'discord-bot',
+      name: 'LeBotDeMath',
       script: 'dist/index.js',
       watch: ['dist'],
       ignore_watch: ['node_modules', 'DB', '.git'],
