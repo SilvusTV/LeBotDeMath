@@ -1,23 +1,18 @@
 import { ApplicationCommandOptionType, EmbedBuilder, MessageFlags, PermissionFlagsBits } from 'discord.js';
-import { CustomCommandRepository } from '../../utils/db';
+import { TwitchCommandRepository } from '../../utils/db';
 
 export = {
-  name: 'customcommand',
+  name: 'twitchcommand',
   category: 'admin',
   ownerOnly: false,
-  usage: 'customcommand [create|list|update|delete]',
-  examples: [
-    'customcommand create',
-    'customcommand list',
-    'customcommand update',
-    'customcommand delete',
-  ],
-  defaultMemberPermissions: PermissionFlagsBits.Administrator,
-  description: 'Gérer les commandes custom du serveur.',
+  usage: 'twitchcommand [add|list|edit|delete]',
+  examples: ['twitchcommand add', 'twitchcommand list', 'twitchcommand edit', 'twitchcommand delete'],
+  defaultMemberPermissions: PermissionFlagsBits.ManageChannels,
+  description: 'Gérer les commandes Twitch du serveur.',
   options: [
     {
-      name: 'create',
-      description: 'Créer une commande custom',
+      name: 'add',
+      description: 'Ajouter une commande Twitch',
       type: ApplicationCommandOptionType.Subcommand,
       options: [
         {
@@ -28,7 +23,7 @@ export = {
         },
         {
           name: 'command',
-          description: 'Commande préfixe (sans le prefix, ex: regles)',
+          description: 'Commande préfixe (sans le prefix, ex: planning)',
           type: ApplicationCommandOptionType.String,
           required: true,
         },
@@ -48,12 +43,12 @@ export = {
     },
     {
       name: 'list',
-      description: 'Lister les commandes custom',
+      description: 'Voir les commandes Twitch',
       type: ApplicationCommandOptionType.Subcommand,
     },
     {
-      name: 'update',
-      description: 'Modifier une commande custom existante',
+      name: 'edit',
+      description: 'Modifier une commande Twitch existante',
       type: ApplicationCommandOptionType.Subcommand,
       options: [
         {
@@ -90,7 +85,7 @@ export = {
     },
     {
       name: 'delete',
-      description: 'Supprimer une commande custom',
+      description: 'Supprimer une commande Twitch',
       type: ApplicationCommandOptionType.Subcommand,
       options: [
         {
@@ -107,10 +102,10 @@ export = {
       return interaction.reply({ content: 'Cette commande doit être utilisée dans un serveur.', flags: MessageFlags.Ephemeral });
     }
 
-    const repository = new CustomCommandRepository();
+    const repository = new TwitchCommandRepository();
     const subcommand = interaction.options.getSubcommand(true);
 
-    if (subcommand === 'create') {
+    if (subcommand === 'add') {
       const title = interaction.options.getString('title', true).trim();
       const command = interaction.options.getString('command', true).trim();
       const description = interaction.options.getString('description', true).trim();
@@ -125,7 +120,7 @@ export = {
 
       const exists = repository.findByCommand(interaction.guildId, command);
       if (exists) {
-        return interaction.reply({ content: 'Cette commande existe déjà.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: 'Cette commande Twitch existe déjà.', flags: MessageFlags.Ephemeral });
       }
 
       const created = repository.create({
@@ -137,7 +132,7 @@ export = {
       });
 
       return interaction.reply({
-        content: `Commande créée: \`${created?.command}\` (${created?.title})`,
+        content: `Commande Twitch créée: \`${created?.command}\` (${created?.title})`,
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -147,8 +142,8 @@ export = {
       if (!rows.length) {
         const emptyEmbed = new EmbedBuilder()
           .setColor('#735B8B')
-          .setTitle('Liste des commandes custom')
-          .setDescription('Aucune commande custom pour ce serveur.')
+          .setTitle('Liste des commandes Twitch')
+          .setDescription('Aucune commande Twitch pour ce serveur.')
           .setTimestamp()
           .setFooter({ text: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() });
 
@@ -163,7 +158,7 @@ export = {
 
       const embed = new EmbedBuilder()
         .setColor('#735B8B')
-        .setTitle('Liste des commandes custom')
+        .setTitle('Liste des commandes Twitch')
         .setDescription(
           displayedRows.length < rows.length
             ? `Affichage des 25 premières commandes sur ${rows.length}.`
@@ -180,7 +175,7 @@ export = {
       return interaction.reply({ embeds: [embed] });
     }
 
-    if (subcommand === 'update') {
+    if (subcommand === 'edit') {
       const command = interaction.options.getString('command', true);
       const title = interaction.options.getString('title');
       const description = interaction.options.getString('description');
@@ -202,20 +197,20 @@ export = {
       });
 
       if (!changes) {
-        return interaction.reply({ content: 'Commande introuvable.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: 'Commande Twitch introuvable.', flags: MessageFlags.Ephemeral });
       }
 
-      return interaction.reply({ content: 'Commande custom mise à jour.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: 'Commande Twitch mise à jour.', flags: MessageFlags.Ephemeral });
     }
 
     if (subcommand === 'delete') {
       const command = interaction.options.getString('command', true);
       const changes = repository.delete(interaction.guildId, command);
       if (!changes) {
-        return interaction.reply({ content: 'Commande introuvable.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: 'Commande Twitch introuvable.', flags: MessageFlags.Ephemeral });
       }
 
-      return interaction.reply({ content: 'Commande custom supprimée.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: 'Commande Twitch supprimée.', flags: MessageFlags.Ephemeral });
     }
 
     return interaction.reply({ content: 'Sous-commande invalide.', flags: MessageFlags.Ephemeral });
