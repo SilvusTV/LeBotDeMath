@@ -1,4 +1,4 @@
-import {ApplicationCommandOptionType, PermissionFlagsBits} from 'discord.js';
+import {ApplicationCommandOptionType, MessageFlags, PermissionFlagsBits} from 'discord.js';
 
 export = {
   name: 'clear',
@@ -26,7 +26,7 @@ export = {
     // Check le nombre de messages a delete
     const amountToDelete = interaction.options.getNumber('nombre');
     if (amountToDelete > 100 || amountToDelete <= 0)
-      return interaction.reply({content: 'Le `NOMBRE` doit être inférieur à 100 et supérieur à 0.', ephemeral: true});
+      return interaction.reply({content: 'Le `NOMBRE` doit être inférieur à 100 et supérieur à 0.', flags: MessageFlags.Ephemeral});
 
     // Messages spécifiques d'un membre
     const user = interaction.options.getMember('target');

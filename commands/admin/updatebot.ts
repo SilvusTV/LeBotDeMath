@@ -1,4 +1,4 @@
-import { PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { exec } from 'child_process';
 
 export = {
@@ -12,9 +12,9 @@ export = {
   async runInteraction(client: any, interaction: any) {
     exec('git pull && npm install', (err, res) => {
       if (err) {
-        interaction.reply({ content: `error response : ${res}`, ephemeral: true });
+        interaction.reply({ content: `error response : ${res}`, flags: MessageFlags.Ephemeral });
       } else {
-        interaction.reply({ content: `\`\`\`${(res || '').slice(0, 2000)}\`\`\``, ephemeral: true });
+        interaction.reply({ content: `\`\`\`${(res || '').slice(0, 2000)}\`\`\``, flags: MessageFlags.Ephemeral });
       }
     });
   },

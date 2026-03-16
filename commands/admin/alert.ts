@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { ApplicationCommandOptionType, ChannelType, EmbedBuilder, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { ContentAlertRepository, type AlertProvider } from '../../utils/db';
 
 const PROVIDERS: AlertProvider[] = ['youtube', 'twitch'];
@@ -131,7 +131,7 @@ export = {
   ],
   async runInteraction(client: any, interaction: any) {
     if (!interaction.guildId) {
-      return interaction.reply({ content: 'Cette commande doit être utilisée dans un serveur.', ephemeral: true });
+      return interaction.reply({ content: 'Cette commande doit être utilisée dans un serveur.', flags: MessageFlags.Ephemeral });
     }
 
     const repository = new ContentAlertRepository();
@@ -141,7 +141,7 @@ export = {
       const providerRaw = interaction.options.getString('provider', true);
       const provider = normalizeProvider(providerRaw);
       if (!provider) {
-        return interaction.reply({ content: 'Provider invalide.', ephemeral: true });
+        return interaction.reply({ content: 'Provider invalide.', flags: MessageFlags.Ephemeral });
       }
 
       const channelUrl = interaction.options.getString('channel_url', true).trim();
@@ -151,7 +151,7 @@ export = {
       if (!isValidProviderUrl(provider, channelUrl)) {
         return interaction.reply({
           content: `URL invalide pour ${provider}.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -160,7 +160,7 @@ export = {
         if (youtubeCount >= 4) {
           return interaction.reply({
             content: 'Limite atteinte: maximum 4 alertes YouTube par guilde.',
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
       }
@@ -176,12 +176,12 @@ export = {
 
         return interaction.reply({
           content: `Alerte créée (#${created?.id}): \`${provider}\` -> <#${targetChannel.id}>`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       } catch (e: any) {
         return interaction.reply({
           content: `Impossible de créer l'alerte: ${e?.message || 'erreur inconnue'}`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
     }
@@ -233,22 +233,22 @@ export = {
       const id = interaction.options.getInteger('id', true);
       const row = repository.findById(id);
       if (!row || row.guildId !== interaction.guildId) {
-        return interaction.reply({ content: 'Alerte introuvable pour cette guilde.', ephemeral: true });
+        return interaction.reply({ content: 'Alerte introuvable pour cette guilde.', flags: MessageFlags.Ephemeral });
       }
 
       const changes = repository.deleteById(id);
       if (!changes) {
-        return interaction.reply({ content: 'Alerte introuvable.', ephemeral: true });
+        return interaction.reply({ content: 'Alerte introuvable.', flags: MessageFlags.Ephemeral });
       }
 
-      return interaction.reply({ content: `Alerte #${id} supprimée.`, ephemeral: true });
+      return interaction.reply({ content: `Alerte #${id} supprimée.`, flags: MessageFlags.Ephemeral });
     }
 
     if (subcommand === 'edit') {
       const id = interaction.options.getInteger('id', true);
       const row = repository.findById(id);
       if (!row || row.guildId !== interaction.guildId) {
-        return interaction.reply({ content: 'Alerte introuvable pour cette guilde.', ephemeral: true });
+        return interaction.reply({ content: 'Alerte introuvable pour cette guilde.', flags: MessageFlags.Ephemeral });
       }
 
       const nextProvider = normalizeProvider(interaction.options.getString('provider')) || row.provider;
@@ -257,7 +257,7 @@ export = {
       const nextMention = interaction.options.getString('mention');
 
       if (!isValidProviderUrl(nextProvider, nextUrl)) {
-        return interaction.reply({ content: `URL invalide pour ${nextProvider}.`, ephemeral: true });
+        return interaction.reply({ content: `URL invalide pour ${nextProvider}.`, flags: MessageFlags.Ephemeral });
       }
 
       if (nextProvider === 'youtube') {
@@ -267,7 +267,7 @@ export = {
         if (youtubeCount >= 4) {
           return interaction.reply({
             content: 'Limite atteinte: maximum 4 alertes YouTube par guilde.',
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
       }
@@ -288,12 +288,12 @@ export = {
       });
 
       if (!changes) {
-        return interaction.reply({ content: "Aucune modification n'a été appliquée.", ephemeral: true });
+        return interaction.reply({ content: "Aucune modification n'a été appliquée.", flags: MessageFlags.Ephemeral });
       }
 
-      return interaction.reply({ content: `Alerte #${id} mise à jour.`, ephemeral: true });
+      return interaction.reply({ content: `Alerte #${id} mise à jour.`, flags: MessageFlags.Ephemeral });
     }
 
-    return interaction.reply({ content: 'Sous-commande invalide.', ephemeral: true });
+    return interaction.reply({ content: 'Sous-commande invalide.', flags: MessageFlags.Ephemeral });
   },
 };

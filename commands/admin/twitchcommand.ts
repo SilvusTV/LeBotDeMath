@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { ApplicationCommandOptionType, EmbedBuilder, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { TwitchCommandRepository } from '../../utils/db';
 
 export = {
@@ -99,7 +99,7 @@ export = {
   ],
   async runInteraction(client: any, interaction: any) {
     if (!interaction.guildId) {
-      return interaction.reply({ content: 'Cette commande doit être utilisée dans un serveur.', ephemeral: true });
+      return interaction.reply({ content: 'Cette commande doit être utilisée dans un serveur.', flags: MessageFlags.Ephemeral });
     }
 
     const repository = new TwitchCommandRepository();
@@ -114,13 +114,13 @@ export = {
       if (!/^[a-zA-Z0-9_-]{1,32}$/.test(command)) {
         return interaction.reply({
           content: 'Le nom de commande doit contenir uniquement lettres/chiffres/_/- (32 max).',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
       const exists = repository.findByCommand(interaction.guildId, command);
       if (exists) {
-        return interaction.reply({ content: 'Cette commande Twitch existe déjà.', ephemeral: true });
+        return interaction.reply({ content: 'Cette commande Twitch existe déjà.', flags: MessageFlags.Ephemeral });
       }
 
       const created = repository.create({
@@ -133,7 +133,7 @@ export = {
 
       return interaction.reply({
         content: `Commande Twitch créée: \`${created?.command}\` (${created?.title})`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -185,7 +185,7 @@ export = {
       if (!title && !description && !response && isActive === null) {
         return interaction.reply({
           content: 'Aucune modification fournie. Donne au moins un champ à mettre à jour.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -197,22 +197,22 @@ export = {
       });
 
       if (!changes) {
-        return interaction.reply({ content: 'Commande Twitch introuvable.', ephemeral: true });
+        return interaction.reply({ content: 'Commande Twitch introuvable.', flags: MessageFlags.Ephemeral });
       }
 
-      return interaction.reply({ content: 'Commande Twitch mise à jour.', ephemeral: true });
+      return interaction.reply({ content: 'Commande Twitch mise à jour.', flags: MessageFlags.Ephemeral });
     }
 
     if (subcommand === 'delete') {
       const command = interaction.options.getString('command', true);
       const changes = repository.delete(interaction.guildId, command);
       if (!changes) {
-        return interaction.reply({ content: 'Commande Twitch introuvable.', ephemeral: true });
+        return interaction.reply({ content: 'Commande Twitch introuvable.', flags: MessageFlags.Ephemeral });
       }
 
-      return interaction.reply({ content: 'Commande Twitch supprimée.', ephemeral: true });
+      return interaction.reply({ content: 'Commande Twitch supprimée.', flags: MessageFlags.Ephemeral });
     }
 
-    return interaction.reply({ content: 'Sous-commande invalide.', ephemeral: true });
+    return interaction.reply({ content: 'Sous-commande invalide.', flags: MessageFlags.Ephemeral });
   },
 };

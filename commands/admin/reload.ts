@@ -1,4 +1,4 @@
-import { PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 
 export = {
   name: 'reload',
@@ -13,7 +13,7 @@ export = {
       color: 0x735b8b,
       description: `Le bot à bien été relancé`,
     };
-    await interaction.reply({ embeds: [embedResponse], ephemeral: true });
+    await interaction.reply({ embeds: [embedResponse], flags: MessageFlags.Ephemeral });
     return process.exit();
   },
 };
