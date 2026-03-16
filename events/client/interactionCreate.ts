@@ -1,3 +1,5 @@
+import { MessageFlags } from 'discord.js';
+
 export = {
   name: 'interactionCreate',
   once: false,
@@ -13,11 +15,29 @@ export = {
           return interaction.reply("La seule personne pouvant taper cette commande est l'owner du bot!");
       }
 
-      await cmd.runInteraction(client, interaction);
+      try {
+        await cmd.runInteraction(client, interaction);
+      } catch (error) {
+        console.error('interaction command error:', error);
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({ content: "Une erreur est survenue lors de l'exécution.", flags: MessageFlags.Ephemeral }).catch(() => null);
+        } else {
+          await interaction.reply({ content: "Une erreur est survenue lors de l'exécution.", flags: MessageFlags.Ephemeral }).catch(() => null);
+        }
+      }
     } else if (interaction.isStringSelectMenu()) {
       const selectMenu = client.selects.get(interaction.customId);
       if (!selectMenu) return interaction.reply("ce menu n'existe pas.");
-      await selectMenu.runInteraction(client, interaction);
+      try {
+        await selectMenu.runInteraction(client, interaction);
+      } catch (error) {
+        console.error('interaction select error:', error);
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({ content: "Une erreur est survenue lors de l'exécution.", flags: MessageFlags.Ephemeral }).catch(() => null);
+        } else {
+          await interaction.reply({ content: "Une erreur est survenue lors de l'exécution.", flags: MessageFlags.Ephemeral }).catch(() => null);
+        }
+      }
     }
   },
 };

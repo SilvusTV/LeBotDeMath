@@ -10,12 +10,34 @@ export = {
   examples: 'updatebot',
   description: 'Mettre à jour le bot',
   async runInteraction(client: any, interaction: any) {
-    exec('git pull && npm install', (err, res) => {
-      if (err) {
-        interaction.reply({ content: `error response : ${res}`, flags: MessageFlags.Ephemeral });
-      } else {
-        interaction.reply({ content: `\`\`\`${(res || '').slice(0, 2000)}\`\`\``, flags: MessageFlags.Ephemeral });
-      }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    await new Promise<void>((resolve) => {
+      exec(
+        'git pull && npm install && npm run build',
+        { maxBuffer: 10 * 1024 * 1024 },
+        async (err, stdout, stderr) => {
+          const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+          const trimmedOutput = output.length ? output.slice(0, 1800) : 'Aucune sortie.';
+
+          if (err) {
+            await interaction
+              .editReply({
+                content: `Mise à jour échouée.\n\`\`\`\n${trimmedOutput}\n\`\`\``,
+              })
+              .catch(() => null);
+            resolve();
+            return;
+          }
+
+          await interaction
+            .editReply({
+              content: `Mise à jour terminée.\n\`\`\`\n${trimmedOutput}\n\`\`\``,
+            })
+            .catch(() => null);
+          resolve();
+        },
+      );
     });
   },
 };
