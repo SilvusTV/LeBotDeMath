@@ -10,7 +10,7 @@ export = {
   examples: 'updatebot',
   description: 'Mettre à jour le bot',
   async runInteraction(client: any, interaction: any) {
-    exec('git pull && npm install && npm run build', (err, res) => {
+    exec('git pull && npm install', (err, res) => {
       if (err) {
         interaction.reply({ content: `error response : ${res}`, ephemeral: true });
       } else {

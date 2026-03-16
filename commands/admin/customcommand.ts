@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, PermissionFlagsBits } from 'discord.js';
+import { ApplicationCommandOptionType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { CustomCommandRepository } from '../../utils/db';
 
 export = {
@@ -145,15 +145,39 @@ export = {
     if (subcommand === 'list') {
       const rows = repository.listByGuild(interaction.guildId);
       if (!rows.length) {
-        return interaction.reply({ content: 'Aucune commande custom pour ce serveur.', ephemeral: true });
+        const emptyEmbed = new EmbedBuilder()
+          .setColor('#735B8B')
+          .setTitle('Liste des commandes custom')
+          .setDescription('Aucune commande custom pour ce serveur.')
+          .setTimestamp()
+          .setFooter({ text: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() });
+
+        return interaction.reply({ embeds: [emptyEmbed] });
       }
 
-      const content = rows
-        .slice(0, 25)
-        .map((row) => `- \`${row.command}\` | ${row.title} | active: ${row.isActive ? 'oui' : 'non'}`)
+      const displayedRows = rows.slice(0, 25);
+      const activeCount = rows.filter((row) => row.isActive).length;
+      const listValue = displayedRows
+        .map((row, index) => `${index + 1}. \`${row.command}\` • ${row.title} • ${row.isActive ? 'actif' : 'inactif'}`)
         .join('\n');
 
-      return interaction.reply({ content, ephemeral: true });
+      const embed = new EmbedBuilder()
+        .setColor('#735B8B')
+        .setTitle('Liste des commandes custom')
+        .setDescription(
+          displayedRows.length < rows.length
+            ? `Affichage des 25 premières commandes sur ${rows.length}.`
+            : `Total des commandes: ${rows.length}.`,
+        )
+        .addFields(
+          { name: 'Actives', value: `${activeCount}`, inline: true },
+          { name: 'Inactives', value: `${rows.length - activeCount}`, inline: true },
+          { name: 'Commandes', value: listValue || 'Aucune', inline: false },
+        )
+        .setTimestamp()
+        .setFooter({ text: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() });
+
+      return interaction.reply({ embeds: [embed] });
     }
 
     if (subcommand === 'update') {
@@ -197,4 +221,3 @@ export = {
     return interaction.reply({ content: 'Sous-commande invalide.', ephemeral: true });
   },
 };
-

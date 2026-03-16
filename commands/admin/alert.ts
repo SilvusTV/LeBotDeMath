@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, ChannelType, PermissionFlagsBits } from 'discord.js';
+import { ApplicationCommandOptionType, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { ContentAlertRepository, type AlertProvider } from '../../utils/db';
 
 const PROVIDERS: AlertProvider[] = ['youtube', 'twitch'];
@@ -189,20 +189,44 @@ export = {
     if (subcommand === 'list') {
       const rows = repository.listByGuild(interaction.guildId);
       if (!rows.length) {
-        return interaction.reply({ content: 'Aucune alerte configurée.', ephemeral: true });
+        const emptyEmbed = new EmbedBuilder()
+          .setColor('#735B8B')
+          .setTitle('Liste des alertes')
+          .setDescription('Aucune alerte configurée pour ce serveur.')
+          .setTimestamp()
+          .setFooter({ text: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() });
+
+        return interaction.reply({ embeds: [emptyEmbed] });
       }
 
-      const content = rows
-        .slice(0, 25)
-        .map(
-          (row) =>
-            `#${row.id} | \`${row.provider}\` | ${row.channelUrl} | -> <#${row.discordChannelId}> | mention: ${
-              row.mention || 'aucune'
-            }`,
-        )
+      const displayedRows = rows.slice(0, 25);
+      const youtubeCount = rows.filter((row) => row.provider === 'youtube').length;
+      const twitchCount = rows.filter((row) => row.provider === 'twitch').length;
+      const listValue = displayedRows
+        .map((row) => {
+          const url = row.channelUrl.length > 70 ? `${row.channelUrl.slice(0, 67)}...` : row.channelUrl;
+          const mention = row.mention?.trim().length ? row.mention.trim() : 'aucune';
+          return `#${row.id} • \`${row.provider}\` • <#${row.discordChannelId}>\nURL: ${url}\nMention: ${mention}`;
+        })
         .join('\n');
 
-      return interaction.reply({ content, ephemeral: true });
+      const embed = new EmbedBuilder()
+        .setColor('#735B8B')
+        .setTitle('Liste des alertes')
+        .setDescription(
+          displayedRows.length < rows.length
+            ? `Affichage des 25 premières alertes sur ${rows.length}.`
+            : `Total des alertes: ${rows.length}.`,
+        )
+        .addFields(
+          { name: 'YouTube', value: `${youtubeCount}`, inline: true },
+          { name: 'Twitch', value: `${twitchCount}`, inline: true },
+          { name: 'Alertes', value: listValue || 'Aucune', inline: false },
+        )
+        .setTimestamp()
+        .setFooter({ text: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() });
+
+      return interaction.reply({ embeds: [embed] });
     }
 
     if (subcommand === 'delete') {
