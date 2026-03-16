@@ -17,7 +17,8 @@ export = {
       configRepository.ensureDefaultGuildConfig(guild.id);
     });
 
-    client.user.setPresence({ activities: [{ name: 'You', type: ActivityType.Watching }], status: 'online' });
+    client.user.setStatus('online');
+    client.user.setActivity('You', { type: ActivityType.Watching });
 
     await client.application.commands.set(client.commands.map((cmd: any) => cmd));
     (client as any).contentAlertService = new ContentAlertService(client);
