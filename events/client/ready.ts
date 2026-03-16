@@ -17,8 +17,21 @@ export = {
       configRepository.ensureDefaultGuildConfig(guild.id);
     });
 
-    client.user.setStatus('online');
-    client.user.setActivity('You', { type: ActivityType.Watching });
+    const watchingText = process.env.BOT_WATCHING_TEXT?.trim() || 'You';
+    const applyPresence = () => {
+      if (!client.user) {
+        return;
+      }
+      client.user.setPresence({
+        status: 'online',
+        activities: [{ name: watchingText, type: ActivityType.Watching }],
+      });
+    };
+
+    applyPresence();
+    client.on('shardResume', applyPresence);
+    client.on('shardReady', applyPresence);
+    setInterval(applyPresence, 15 * 60 * 1000).unref();
 
     await client.application.commands.set(client.commands.map((cmd: any) => cmd));
     (client as any).contentAlertService = new ContentAlertService(client);
