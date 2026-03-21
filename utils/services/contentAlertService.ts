@@ -141,19 +141,13 @@ export class ContentAlertService {
     }
 
     const contentUrl = `https://www.youtube.com/watch?v=${latest.videoId}`;
-    if (!alert.lastContentId) {
-      this.repository.updateById(alert.id, {
-        lastContentId: latest.videoId,
-        lastContentUrl: contentUrl,
-        lastContentType: 'video',
-      });
-      return;
-    }
 
+    // Si c'est la même vidéo qu'avant, on ne fait rien
     if (alert.lastContentId === latest.videoId) {
       return;
     }
 
+    // Nouvelle vidéo détectée (ou première vidéo) : on envoie une notification
     await this.sendAlertMessage({
       alert,
       channelName,
@@ -215,19 +209,13 @@ export class ContentAlertService {
     }
 
     const contentUrl = `https://www.twitch.tv/${user.login}`;
-    if (!alert.lastContentId) {
-      this.repository.updateById(alert.id, {
-        lastContentId: stream.id,
-        lastContentUrl: contentUrl,
-        lastContentType: 'live',
-      });
-      return;
-    }
 
+    // Si c'est le même stream qu'avant, on ne fait rien
     if (alert.lastContentId === stream.id) {
       return;
     }
 
+    // Nouveau stream détecté (ou premier stream) : on envoie une notification
     await this.sendAlertMessage({
       alert,
       channelName: user.displayName,
