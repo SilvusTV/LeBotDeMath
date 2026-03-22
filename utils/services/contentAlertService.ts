@@ -1,7 +1,8 @@
-import { Client, EmbedBuilder } from 'discord.js';
+import { Client } from 'discord.js';
 import cron, { type ScheduledTask } from 'node-cron';
 import Logger from '../Logger';
 import { ContentAlertRepository, type ContentAlert } from '../db';
+import { createTwitchLiveEmbed, createYouTubeVideoEmbed } from '../embeds';
 
 type YouTubeChannelTarget =
   | { kind: 'channelId'; value: string }
@@ -154,6 +155,9 @@ export class ContentAlertService {
       url: contentUrl,
       type: 'video',
       providerLabel: 'YouTube',
+      title: latest.videoTitle,
+      channelThumbnail: latest.channelThumbnail,
+      videoThumbnail: latest.videoThumbnail,
     });
 
     this.repository.updateById(alert.id, {
@@ -222,6 +226,7 @@ export class ContentAlertService {
       url: contentUrl,
       type: 'live',
       providerLabel: 'Twitch',
+      title: undefined,
     });
 
     this.repository.updateById(alert.id, {
@@ -240,6 +245,9 @@ export class ContentAlertService {
     url: string;
     type: 'video' | 'live';
     providerLabel: 'YouTube' | 'Twitch';
+    title?: string;
+    channelThumbnail?: string;
+    videoThumbnail?: string;
   }): Promise<void> {
     const guild = await this.client.guilds.fetch(input.alert.guildId).catch(() => null);
     if (!guild) {
@@ -251,17 +259,16 @@ export class ContentAlertService {
       return;
     }
 
-    const isLive = input.type === 'live';
-    const embed = new EmbedBuilder()
-      .setColor(isLive ? 0x9146ff : 0xff0000)
-      .setTitle(isLive ? `${input.channelName} est en live` : `${input.channelName} a sorti une vidéo`)
-      .setDescription(`[Ouvrir ${input.providerLabel}](${input.url})`)
-      .addFields(
-        { name: 'Créateur', value: input.channelName, inline: true },
-        { name: 'Type', value: isLive ? 'Live' : 'Vidéo', inline: true },
-        { name: 'URL', value: input.url, inline: false },
-      )
-      .setTimestamp(new Date());
+    const embed =
+      input.providerLabel === 'Twitch'
+        ? createTwitchLiveEmbed(input.channelName, input.url)
+        : createYouTubeVideoEmbed(
+            input.channelName,
+            input.url,
+            input.title || 'Sans titre',
+            input.channelThumbnail,
+            input.videoThumbnail,
+          );
 
     await channel.send({
       content: input.alert.mention.trim().length ? input.alert.mention.trim() : undefined,
@@ -372,7 +379,7 @@ export class ContentAlertService {
   private async fetchLatestYouTubeVideo(
     channelId: string,
     apiKey: string,
-  ): Promise<{ videoId: string; channelTitle: string } | null> {
+  ): Promise<{ videoId: string; channelTitle: string; videoTitle: string; channelThumbnail: string; videoThumbnail: string } | null> {
     const endpoint = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&order=date&maxResults=1&type=video&key=${encodeURIComponent(apiKey)}`;
     const data = await this.fetchJson<any>(endpoint);
     const item = data?.items?.[0];
@@ -381,9 +388,17 @@ export class ContentAlertService {
       return null;
     }
 
+    // Récupérer les détails de la chaîne pour avoir la photo de profil
+    const channelEndpoint = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${encodeURIComponent(channelId)}&key=${encodeURIComponent(apiKey)}`;
+    const channelData = await this.fetchJson<any>(channelEndpoint);
+    const channelThumbnail = channelData?.items?.[0]?.snippet?.thumbnails?.high?.url || '';
+
     return {
       videoId,
       channelTitle: item?.snippet?.channelTitle || '',
+      videoTitle: item?.snippet?.title || 'Sans titre',
+      channelThumbnail,
+      videoThumbnail: item?.snippet?.thumbnails?.high?.url || item?.snippet?.thumbnails?.medium?.url || '',
     };
   }
 
