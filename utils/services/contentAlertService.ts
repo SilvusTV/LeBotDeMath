@@ -270,8 +270,18 @@ export class ContentAlertService {
             input.videoThumbnail,
           );
 
+    // Pour YouTube, on ajoute l'URL dans le content pour l'embed vidéo Discord
+    const mention = input.alert.mention.trim();
+    const contentParts = [];
+    if (mention) {
+      contentParts.push(mention);
+    }
+    if (input.providerLabel === 'YouTube') {
+      contentParts.push(input.url);
+    }
+
     await channel.send({
-      content: input.alert.mention.trim().length ? input.alert.mention.trim() : undefined,
+      content: contentParts.length > 0 ? contentParts.join('\n') : undefined,
       embeds: [embed],
     });
   }

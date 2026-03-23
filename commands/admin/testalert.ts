@@ -133,8 +133,18 @@ export = {
       }
 
       // Envoyer le message de test
+      const mention = alert.mention.trim();
+      const contentParts = ['**🧪 TEST D\'ALERTE**'];
+      if (mention) {
+        contentParts.push(mention);
+      }
+      // Pour YouTube, ajouter l'URL pour l'embed vidéo Discord
+      if (alert.provider === 'youtube') {
+        contentParts.push(alert.lastContentUrl);
+      }
+
       await targetChannel.send({
-        content: `**🧪 TEST D'ALERTE** ${alert.mention.trim().length ? alert.mention.trim() : ''}`,
+        content: contentParts.join('\n'),
         embeds: [embed],
       });
 
