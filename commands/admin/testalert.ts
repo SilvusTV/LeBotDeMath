@@ -71,6 +71,12 @@ export = {
       });
     }
 
+    // Répondre immédiatement pour éviter le timeout
+    await interaction.reply({
+      content: `⏳ Récupération des données pour l'alerte #${alertId}...`,
+      flags: MessageFlags.Ephemeral,
+    });
+
     try {
       // Créer l'embed en fonction du provider
       let embed;
@@ -80,13 +86,49 @@ export = {
           alert.lastContentUrl,
         );
       } else {
-        // Pour YouTube, on utilise des données de test car on n'a pas le titre stocké
+        // Pour YouTube, récupérer les vraies données depuis l'API
+        const videoId = alert.lastContentId;
+        const apiKey = process.env.YOUTUBE_API_KEY;
+
+        let videoTitle = 'Test - Dernière vidéo détectée';
+        let videoThumbnail: string | undefined;
+        let channelThumbnail: string | undefined;
+
+        if (apiKey && videoId) {
+          try {
+            // Récupérer les détails de la vidéo
+            const videoResponse = await fetch(
+              `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(apiKey)}`,
+            );
+            const videoData = await videoResponse.json();
+            const videoItem = videoData?.items?.[0];
+
+            if (videoItem) {
+              videoTitle = videoItem.snippet?.title || videoTitle;
+              videoThumbnail = videoItem.snippet?.thumbnails?.high?.url || videoItem.snippet?.thumbnails?.medium?.url;
+
+              // Récupérer la photo de profil de la chaîne
+              const channelId = alert.providerChannelId;
+              if (channelId) {
+                const channelResponse = await fetch(
+                  `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${encodeURIComponent(channelId)}&key=${encodeURIComponent(apiKey)}`,
+                );
+                const channelData = await channelResponse.json();
+                channelThumbnail = channelData?.items?.[0]?.snippet?.thumbnails?.high?.url;
+              }
+            }
+          } catch (e) {
+            // En cas d'erreur, on continue avec les données par défaut
+            console.error('Erreur lors de la récupération des données YouTube:', e);
+          }
+        }
+
         embed = createYouTubeVideoEmbed(
           alert.providerChannelName || 'Chaîne YouTube',
           alert.lastContentUrl,
-          'Test - Dernière vidéo détectée',
-          undefined, // Pas de thumbnail de chaîne
-          undefined, // Pas de thumbnail de vidéo
+          videoTitle,
+          channelThumbnail,
+          videoThumbnail,
         );
       }
 
@@ -96,14 +138,12 @@ export = {
         embeds: [embed],
       });
 
-      return interaction.reply({
+      return interaction.editReply({
         content: `✅ Alerte de test envoyée dans <#${targetChannelId}> pour l'alerte #${alertId} (${alert.provider}).`,
-        flags: MessageFlags.Ephemeral,
       });
     } catch (error: any) {
-      return interaction.reply({
+      return interaction.editReply({
         content: `❌ Erreur lors de l'envoi de l'alerte de test: ${error?.message || 'erreur inconnue'}`,
-        flags: MessageFlags.Ephemeral,
       });
     }
   },

@@ -36,11 +36,6 @@ export function createYouTubeVideoEmbed(
     .setColor(YOUTUBE_EMBED_CONFIG.COLOR)
     .setTitle(YOUTUBE_EMBED_CONFIG.TITLE(videoTitle))
     .setDescription(YOUTUBE_EMBED_CONFIG.DESCRIPTION(channelName, url))
-    .addFields(
-      { name: YOUTUBE_EMBED_CONFIG.FIELDS.CREATOR, value: channelName, inline: true },
-      { name: YOUTUBE_EMBED_CONFIG.FIELDS.TYPE, value: YOUTUBE_EMBED_CONFIG.TYPE_VALUE, inline: true },
-      { name: YOUTUBE_EMBED_CONFIG.FIELDS.URL, value: url, inline: false },
-    )
     .setTimestamp(new Date());
 
   // Ajouter la photo de profil de la chaîne en tant qu'author icon
