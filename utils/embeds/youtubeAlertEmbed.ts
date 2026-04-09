@@ -1,4 +1,4 @@
-import { EmbedBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
 /**
  * Configuration pour les embeds d'alertes YouTube
@@ -7,12 +7,7 @@ export const YOUTUBE_EMBED_CONFIG = {
   COLOR: 0xff0000, // Rouge YouTube
   TITLE: (videoTitle: string) => videoTitle,
   DESCRIPTION: (channelName: string, url: string) => `**${channelName}** vient de sortir une vidéo !\n[Regarder sur YouTube](${url})`,
-  FIELDS: {
-    CREATOR: 'Créateur',
-    TYPE: 'Type',
-    URL: 'URL',
-  },
-  TYPE_VALUE: 'Vidéo',
+  BUTTON_LABEL: 'Accéder à YouTube',
 } as const;
 
 /**
@@ -52,4 +47,13 @@ export function createYouTubeVideoEmbed(
   }
 
   return embed;
+}
+
+export function createYouTubeAccessButtonRow(url: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel(YOUTUBE_EMBED_CONFIG.BUTTON_LABEL)
+      .setURL(url),
+  );
 }

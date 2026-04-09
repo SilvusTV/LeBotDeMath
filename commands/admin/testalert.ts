@@ -1,6 +1,11 @@
-import { ApplicationCommandOptionType, ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
+import { ActionRowBuilder, ApplicationCommandOptionType, ButtonBuilder, ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { ContentAlertRepository } from '../../utils/db';
-import { createTwitchLiveEmbed, createYouTubeVideoEmbed } from '../../utils/embeds';
+import {
+  createTwitchAccessButtonRow,
+  createTwitchLiveEmbed,
+  createYouTubeAccessButtonRow,
+  createYouTubeVideoEmbed,
+} from '../../utils/embeds';
 
 export = {
   name: 'testalert',
@@ -80,11 +85,14 @@ export = {
     try {
       // Créer l'embed en fonction du provider
       let embed;
+      let components: ActionRowBuilder<ButtonBuilder>[] = [];
       if (alert.provider === 'twitch') {
-        embed = createTwitchLiveEmbed(
-          alert.providerChannelName || 'Streamer Twitch',
-          alert.lastContentUrl,
-        );
+        embed = createTwitchLiveEmbed({
+          channelName: alert.providerChannelName || 'Streamer Twitch',
+          url: alert.lastContentUrl,
+          liveTitle: 'Test - Live en cours',
+        });
+        components = [createTwitchAccessButtonRow(alert.lastContentUrl)];
       } else {
         // Pour YouTube, récupérer les vraies données depuis l'API
         const videoId = alert.lastContentId;
@@ -130,6 +138,7 @@ export = {
           channelThumbnail,
           videoThumbnail,
         );
+        components = [createYouTubeAccessButtonRow(alert.lastContentUrl)];
       }
 
       // Envoyer le message de test
@@ -146,6 +155,7 @@ export = {
       await targetChannel.send({
         content: contentParts.join('\n'),
         embeds: [embed],
+        components,
       });
 
       return interaction.editReply({

@@ -1,13 +1,47 @@
-import { Client } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  Client,
+  Guild,
+  GuildScheduledEventEntityType,
+  GuildScheduledEventPrivacyLevel,
+  GuildScheduledEventStatus,
+} from 'discord.js';
 import cron, { type ScheduledTask } from 'node-cron';
 import Logger from '../Logger';
 import { ContentAlertRepository, type ContentAlert } from '../db';
-import { createTwitchLiveEmbed, createYouTubeVideoEmbed } from '../embeds';
+import {
+  createTwitchAccessButtonRow,
+  createTwitchLiveEmbed,
+  createYouTubeAccessButtonRow,
+  createYouTubeVideoEmbed,
+} from '../embeds';
 
 type YouTubeChannelTarget =
   | { kind: 'channelId'; value: string }
   | { kind: 'handle'; value: string }
   | { kind: 'custom'; value: string };
+
+type TwitchUser = {
+  id: string;
+  login: string;
+  displayName: string;
+  profileImageUrl?: string;
+};
+
+type TwitchStream = {
+  id: string;
+  title: string;
+  gameId: string;
+  gameName: string;
+  thumbnailUrl: string;
+  startedAt: string;
+};
+
+type ActiveTwitchLiveState = {
+  streamId: string;
+  scheduledEventId: string | null;
+};
 
 export class ContentAlertService {
   private readonly repository: ContentAlertRepository;
@@ -19,6 +53,7 @@ export class ContentAlertService {
   private twitchTokenExpiresAt = 0;
   private youtubeKeyMissingWarned = false;
   private twitchCredsMissingWarned = false;
+  private readonly activeTwitchLives = new Map<number, ActiveTwitchLiveState>();
 
   constructor(private readonly client: Client, repository?: ContentAlertRepository) {
     this.repository = repository ?? new ContentAlertRepository();
@@ -209,10 +244,21 @@ export class ContentAlertService {
 
     const stream = await this.fetchTwitchStream(accessToken, clientId, user.id);
     if (!stream) {
+      await this.handleTwitchLiveEnded(alert, user.displayName);
       return;
     }
 
     const contentUrl = `https://www.twitch.tv/${user.login}`;
+    const streamPreview = this.formatTwitchStreamPreviewUrl(stream.thumbnailUrl);
+    const categoryImage = stream.gameId
+      ? await this.fetchTwitchGameBoxArt(accessToken, clientId, stream.gameId)
+      : null;
+
+    const scheduledEventId = await this.ensureTwitchLiveEvent(alert, user, stream, contentUrl);
+    this.activeTwitchLives.set(alert.id, {
+      streamId: stream.id,
+      scheduledEventId,
+    });
 
     // Si c'est le même stream qu'avant, on ne fait rien
     if (alert.lastContentId === stream.id) {
@@ -226,7 +272,11 @@ export class ContentAlertService {
       url: contentUrl,
       type: 'live',
       providerLabel: 'Twitch',
-      title: undefined,
+      title: stream.title || undefined,
+      channelThumbnail: user.profileImageUrl,
+      videoThumbnail: streamPreview,
+      twitchCategory: stream.gameName || undefined,
+      twitchCategoryImage: categoryImage || undefined,
     });
 
     this.repository.updateById(alert.id, {
@@ -248,6 +298,8 @@ export class ContentAlertService {
     title?: string;
     channelThumbnail?: string;
     videoThumbnail?: string;
+    twitchCategory?: string;
+    twitchCategoryImage?: string;
   }): Promise<void> {
     const guild = await this.client.guilds.fetch(input.alert.guildId).catch(() => null);
     if (!guild) {
@@ -261,7 +313,15 @@ export class ContentAlertService {
 
     const embed =
       input.providerLabel === 'Twitch'
-        ? createTwitchLiveEmbed(input.channelName, input.url)
+        ? createTwitchLiveEmbed({
+            channelName: input.channelName,
+            url: input.url,
+            liveTitle: input.title,
+            channelProfileImage: input.channelThumbnail,
+            categoryName: input.twitchCategory,
+            categoryImage: input.twitchCategoryImage,
+            streamPreviewImage: input.videoThumbnail,
+          })
         : createYouTubeVideoEmbed(
             input.channelName,
             input.url,
@@ -269,6 +329,10 @@ export class ContentAlertService {
             input.channelThumbnail,
             input.videoThumbnail,
           );
+    const accessButtonRow: ActionRowBuilder<ButtonBuilder> =
+      input.providerLabel === 'Twitch'
+        ? createTwitchAccessButtonRow(input.url)
+        : createYouTubeAccessButtonRow(input.url);
 
     // Pour YouTube, on ajoute l'URL dans le content pour l'embed vidéo Discord
     const mention = input.alert.mention.trim();
@@ -283,7 +347,134 @@ export class ContentAlertService {
     await channel.send({
       content: contentParts.length > 0 ? contentParts.join('\n') : undefined,
       embeds: [embed],
+      components: [accessButtonRow],
     });
+  }
+
+  private async ensureTwitchLiveEvent(
+    alert: ContentAlert,
+    user: TwitchUser,
+    stream: TwitchStream,
+    streamUrl: string,
+  ): Promise<string | null> {
+    const activeState = this.activeTwitchLives.get(alert.id);
+    if (activeState && activeState.streamId === stream.id) {
+      return activeState.scheduledEventId;
+    }
+
+    const guild = await this.client.guilds.fetch(alert.guildId).catch(() => null);
+    if (!guild) {
+      return null;
+    }
+
+    const eventName = this.buildTwitchLiveEventName(user.displayName);
+    const existing = await this.findActiveTwitchLiveEvent(guild, eventName);
+    if (existing) {
+      return existing.id;
+    }
+
+    const createdEvent = await guild.scheduledEvents
+      .create({
+        name: eventName,
+        description: stream.title || `${user.displayName} est actuellement en live sur Twitch.`,
+        scheduledStartTime: stream.startedAt || new Date().toISOString(),
+        scheduledEndTime: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+        entityType: GuildScheduledEventEntityType.External,
+        entityMetadata: { location: streamUrl },
+      })
+      .catch((e: any) => {
+        Logger.warn(`Impossible de créer l'évènement Discord pour le live Twitch #${alert.id}: ${e?.message || e}`);
+        return null;
+      });
+
+    return createdEvent?.id ?? null;
+  }
+
+  private async handleTwitchLiveEnded(alert: ContentAlert, channelName: string): Promise<void> {
+    const activeState = this.activeTwitchLives.get(alert.id);
+    if (activeState?.scheduledEventId) {
+      await this.completeTwitchLiveEventById(alert.guildId, activeState.scheduledEventId);
+    }
+    this.activeTwitchLives.delete(alert.id);
+
+    // Couverture des redémarrages: on termine aussi les évènements actifs portant le nom attendu.
+    await this.completeMatchingTwitchLiveEvents(alert.guildId, channelName);
+  }
+
+  private buildTwitchLiveEventName(channelName: string): string {
+    return `🔴 ${channelName} est en live sur Twitch`;
+  }
+
+  private async findActiveTwitchLiveEvent(guild: Guild, eventName: string): Promise<any | null> {
+    const events = await guild.scheduledEvents.fetch().catch(() => null);
+    if (!events) {
+      return null;
+    }
+
+    return (
+      events.find(
+        (event) =>
+          event.name === eventName &&
+          (event.status === GuildScheduledEventStatus.Active || event.status === GuildScheduledEventStatus.Scheduled),
+      ) || null
+    );
+  }
+
+  private async completeTwitchLiveEventById(guildId: string, eventId: string): Promise<void> {
+    const guild = await this.client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) {
+      return;
+    }
+
+    const event = await guild.scheduledEvents.fetch(eventId).catch(() => null);
+    if (!event) {
+      return;
+    }
+
+    await this.completeTwitchLiveEvent(event);
+  }
+
+  private async completeMatchingTwitchLiveEvents(guildId: string, channelName: string): Promise<void> {
+    const guild = await this.client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) {
+      return;
+    }
+
+    const eventName = this.buildTwitchLiveEventName(channelName);
+    const events = await guild.scheduledEvents.fetch().catch(() => null);
+    if (!events) {
+      return;
+    }
+
+    for (const event of events.values()) {
+      if (
+        event.name === eventName &&
+        (event.status === GuildScheduledEventStatus.Active || event.status === GuildScheduledEventStatus.Scheduled)
+      ) {
+        await this.completeTwitchLiveEvent(event);
+      }
+    }
+  }
+
+  private async completeTwitchLiveEvent(event: any): Promise<void> {
+    await event
+      .edit({
+        scheduledEndTime: new Date().toISOString(),
+        status: GuildScheduledEventStatus.Completed,
+      })
+      .catch((e: any) => {
+        Logger.warn(`Impossible de clôturer l'évènement Discord Twitch (${event?.id || 'unknown'}): ${e?.message || e}`);
+      });
+  }
+
+  private formatTwitchStreamPreviewUrl(templateUrl: string): string {
+    if (!templateUrl) {
+      return '';
+    }
+
+    const withSize = templateUrl.replace('{width}', '1280').replace('{height}', '720');
+    return `${withSize}?t=${Date.now()}`;
   }
 
   private parseYouTubeChannelTarget(channelUrl: string): YouTubeChannelTarget | null {
@@ -433,35 +624,45 @@ export class ContentAlertService {
     accessToken: string,
     clientId: string,
     login: string,
-  ): Promise<{ id: string; login: string; displayName: string } | null> {
+  ): Promise<TwitchUser | null> {
     const endpoint = `https://api.twitch.tv/helix/users?login=${encodeURIComponent(login)}`;
     const data = await this.fetchTwitchHelix(endpoint, accessToken, clientId);
     const item = data?.data?.[0];
     if (!item?.id) {
       return null;
     }
-    return { id: item.id, login: item.login, displayName: item.display_name };
+    return {
+      id: item.id,
+      login: item.login,
+      displayName: item.display_name,
+      profileImageUrl: item.profile_image_url,
+    };
   }
 
   private async fetchTwitchUserById(
     accessToken: string,
     clientId: string,
     id: string,
-  ): Promise<{ id: string; login: string; displayName: string } | null> {
+  ): Promise<TwitchUser | null> {
     const endpoint = `https://api.twitch.tv/helix/users?id=${encodeURIComponent(id)}`;
     const data = await this.fetchTwitchHelix(endpoint, accessToken, clientId);
     const item = data?.data?.[0];
     if (!item?.id) {
       return null;
     }
-    return { id: item.id, login: item.login, displayName: item.display_name };
+    return {
+      id: item.id,
+      login: item.login,
+      displayName: item.display_name,
+      profileImageUrl: item.profile_image_url,
+    };
   }
 
   private async fetchTwitchStream(
     accessToken: string,
     clientId: string,
     userId: string,
-  ): Promise<{ id: string } | null> {
+  ): Promise<TwitchStream | null> {
     const endpoint = `https://api.twitch.tv/helix/streams?user_id=${encodeURIComponent(userId)}`;
     const data = await this.fetchTwitchHelix(endpoint, accessToken, clientId);
     const item = data?.data?.[0];
@@ -469,7 +670,30 @@ export class ContentAlertService {
       return null;
     }
 
-    return { id: item.id };
+    return {
+      id: item.id,
+      title: item.title || '',
+      gameId: item.game_id || '',
+      gameName: item.game_name || 'Sans catégorie',
+      thumbnailUrl: item.thumbnail_url || '',
+      startedAt: item.started_at || new Date().toISOString(),
+    };
+  }
+
+  private async fetchTwitchGameBoxArt(
+    accessToken: string,
+    clientId: string,
+    gameId: string,
+  ): Promise<string | null> {
+    const endpoint = `https://api.twitch.tv/helix/games?id=${encodeURIComponent(gameId)}`;
+    const data = await this.fetchTwitchHelix(endpoint, accessToken, clientId);
+    const item = data?.data?.[0];
+    const boxArt = item?.box_art_url;
+    if (!boxArt) {
+      return null;
+    }
+
+    return boxArt.replace('{width}', '285').replace('{height}', '380');
   }
 
   private async fetchTwitchHelix(url: string, accessToken: string, clientId: string): Promise<any> {
